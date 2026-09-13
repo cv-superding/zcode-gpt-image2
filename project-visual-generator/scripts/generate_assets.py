@@ -294,6 +294,67 @@ BROWSER_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
 
 
+def build_multipart(fields, files, boundary):
+    import io
+    buf = io.BytesIO()
+    for key, value in fields.items():
+        buf.write(f"--{boundary}\r\n".encode())
+        buf.write(f'Content-Disposition: form-data; name="{key}"\r\n\r\n{value}\r\n'.encode())
+    for name, filename, data in files:
+        buf.write(f"--{boundary}\r\n".encode())
+        buf.write(f'Content-Disposition: form-data; name="{name}"; filename="{filename}"\r\n'.encode())
+        buf.write(b"Content-Type: application/octet-stream\r\n\r\n")
+        buf.write(data)
+        buf.write(b"\r\n")
+    buf.write(f"--{boundary}--\r\n".encode())
+    return buf.getvalue()
+
+
+def call_api_edits(prompt, size, model, ref_images, api_key, base_url, timeout=300,
+                   proxy=""):
+    """Generate with reference image(s) via the images/edits endpoint (multipart)."""
+    import uuid
+    url = resolve_base_url(base_url) + "/images/edits"
+    files = []
+    for path in ref_images:
+        with open(path, "rb") as fh:
+            files.append(("image[]", os.path.basename(path), fh.read()))
+    boundary = "----zcode" + uuid.uuid4().hex
+    body = build_multipart(
+        {"model": model, "prompt": prompt, "n": "1", "size": size}, files, boundary)
+    opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler(
+            {"http": proxy, "https": proxy} if proxy else {}))
+    headers = {"Authorization": f"Bearer {api_key}", "User-Agent": BROWSER_UA,
+               "Content-Type": f"multipart/form-data; boundary={boundary}"}
+    last_err = None
+    for attempt in range(3):
+        req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+        try:
+            with opener.open(req, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            item = data["data"][0]
+            if item.get("b64_json"):
+                return base64.b64decode(item["b64_json"])
+            if item.get("url"):
+                img_req = urllib.request.Request(item["url"], headers={"User-Agent": BROWSER_UA})
+                with opener.open(img_req, timeout=timeout) as img:
+                    return img.read()
+            raise RuntimeError("response contained neither b64_json nor url")
+        except urllib.error.HTTPError as err:
+            detail = err.read().decode("utf-8", "replace")[:300]
+            last_err = RuntimeError(f"HTTP {err.code}: {detail}")
+            print(f"  attempt {attempt + 1} failed: {detail}", file=sys.stderr)
+            if attempt < 2:
+                time.sleep(10 * (attempt + 1))
+        except (urllib.error.URLError, RuntimeError, KeyError) as err:
+            last_err = err
+            print(f"  attempt {attempt + 1} failed: {err}", file=sys.stderr)
+            if attempt < 2:
+                time.sleep(10 * (attempt + 1))
+    raise RuntimeError(f"image generation failed after retries: {last_err}")
+
+
 def call_api(prompt, size, quality, background, model, api_key, base_url, timeout=300,
              proxy=""):
     url = resolve_base_url(base_url) + "/images/generations"
@@ -411,8 +472,8 @@ def update_readme(banner_path, icon_path, readme_path):
 
 def parse_args():
     p = argparse.ArgumentParser(description="Generate project visual assets via gpt-image-2")
-    p.add_argument("--name", required=True, help="project name")
-    p.add_argument("--desc", required=True, help="one-line project description")
+    p.add_argument("--name", default="", help="project name")
+    p.add_argument("--desc", default="", help="one-line project description")
     p.add_argument("--tech", default="", help="tech stack, e.g. 'Python AI CLI tool'")
     p.add_argument("--color", default="", help="primary color hex, e.g. #8b5cf6")
     p.add_argument("--assets", default="icon,banner",
@@ -429,6 +490,11 @@ def parse_args():
                    help="override per-asset background (icon defaults to transparent)")
     p.add_argument("--api-key", default="", help="defaults to OPENAI_API_KEY env or config file")
     p.add_argument("--base-url", default="", help="defaults to OPENAI_BASE_URL env or config file")
+    p.add_argument("--ref-images", default="",
+                   help="comma-separated reference image paths; switches to the "
+                        "images/edits endpoint so the style of the reference(s) is fused in")
+    p.add_argument("--list-models", action="store_true",
+                   help="list image-generation models offered by the endpoint and exit")
     p.add_argument("--config", default="", help=f"alternative config file (default: {CONFIG_PATH})")
     p.add_argument("--proxy", default="", help="HTTP proxy for the API call, e.g. http://127.0.0.1:7897 "
                                                "(defaults to 'proxy' field in config file)")
@@ -455,6 +521,30 @@ def main():
     api_key = args.api_key or os.environ.get("OPENAI_API_KEY") or cfg.get("apiKey", "")
     base_url = args.base_url or os.environ.get("OPENAI_BASE_URL") or cfg.get("baseUrl", "")
     proxy = args.proxy or cfg.get("proxy", "")
+
+    if args.list_models:
+        if not api_key:
+            print("error: no API key configured", file=sys.stderr)
+            return 1
+        ids = fetch_model_ids(api_key, base_url, proxy)
+        if ids is None:
+            print("error: could not fetch model list", file=sys.stderr)
+            return 1
+        keywords = ("image", "dall", "flux", "seed", "banana", "midjourney", "mj_",
+                    "sd3", "stable", "kontext", "grok-2-image", "draw")
+        image_models = sorted(i for i in ids if any(k in i.lower() for k in keywords))
+        print(json.dumps({"image_models": image_models}, ensure_ascii=False, indent=2))
+        return 0
+
+    ref_images = [p.strip() for p in args.ref_images.split(",") if p.strip()] if args.ref_images else []
+    for path in ref_images:
+        if not os.path.isfile(path):
+            print(f"error: reference image not found: {path}", file=sys.stderr)
+            return 1
+
+    if not args.dry_run and (not args.name or not args.desc):
+        print("error: --name and --desc are required for generation", file=sys.stderr)
+        return 1
     base_model = args.model or cfg.get("model") or DEFAULT_MODEL
     if args.res and not base_model.endswith(f"-{args.res}"):
         model = tier_model(base_model, args.res)  # e.g. gpt-image-2 + 2k -> gpt-image-2-2k
@@ -528,8 +618,12 @@ def main():
         out_path = os.path.join(args.out, f"{asset}-{slug}.png")
         print(f"[{asset}] generating {size} ({background}) -> {out_path}")
         try:
-            content = call_api(prompts[asset], size, args.quality, background,
-                               model, api_key, base_url, proxy=proxy)
+            if ref_images:
+                content = call_api_edits(prompts[asset], size, model, ref_images,
+                                         api_key, base_url, proxy=proxy)
+            else:
+                content = call_api(prompts[asset], size, args.quality, background,
+                                   model, api_key, base_url, proxy=proxy)
             save_image(content, out_path)
             entry = {"type": asset, "path": out_path, "status": "ok"}
             if background == "transparent":

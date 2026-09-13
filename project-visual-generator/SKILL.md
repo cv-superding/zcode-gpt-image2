@@ -33,10 +33,28 @@ interactive multiple-choice tool (in ZCode: AskUserQuestion) with ONE round of a
 most 3 concrete options each, never open-ended questions. If the user explicitly
 says 随便/你定/不用问 — just generate.
 
-### 2. Craft the prompts (do this yourself — this is the core value)
+### 2. Ask two things (one round), then craft prompts
 
-Read `references/prompt-guide.md` for composition rules per asset type, then write one
-English prompt per asset. Requirements for a good prompt:
+Before generating, ask ONE round via your multiple-choice tool (in ZCode:
+AskUserQuestion). Only these two questions — everything else stays default:
+
+1. **参考图** — "要不要融合参考图？" Options: 联网搜索品牌图标 (AI searches and
+   downloads a reference) / 我自己提供图片 (user gives path(s)) / 不需要参考.
+   Recommend searching when the project belongs to a known brand or tool
+   (ZCode, Claude, Codex, DeepSeek...) — fusing the official icon style into the
+   banner keeps branding consistent. Do the search and download yourself; never
+   ask the user to find the image. If the user already supplied an image or said
+   no reference, skip this question.
+2. **生图模型** — relays often offer several image models at different prices.
+   Run `--list-models` to see what the endpoint offers, then offer 2–4 concrete
+   options (with prices if known). Skip when only one model exists or the user
+   already named one.
+
+If the user's request already answered a question (e.g. they pasted an image, or
+said 用ZCode图标风格), skip it. Ask nothing else.
+
+Then craft one English prompt per asset after reading
+`references/prompt-guide.md`. Requirements for a good prompt:
 
 - Describes the project's *purpose* as a visual metaphor, not just its name.
 - Names the dominant color as a hex value.
@@ -46,6 +64,10 @@ English prompt per asset. Requirements for a good prompt:
 
 Do not rely on the script's fallback templates when you can write a better one — pass
 your prompt via `--prompt-icon` / `--prompt-banner` / `--prompt-illustration`.
+When reference images were agreed on (step 2), say in the prompt how they should be
+used (e.g. "match the style and color of the reference image, keep its logo shape
+recognizable") and pass them via `--ref-images path1,path2` — this switches the
+script to the images/edits endpoint which fuses the reference style in.
 
 ### 3. Run the script
 
