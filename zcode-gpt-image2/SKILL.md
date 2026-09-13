@@ -1,5 +1,5 @@
 ---
-name: project-visual-generator
+name: zcode-gpt-image2
 description: Generate software icons, GitHub repo banners / social previews, and README illustrations for a project by calling the OpenAI gpt-image-2 API. Trigger on ANY casual mention of making project visuals — 生成图标、做个logo、生成横幅、banner、封面、配图、社交预览图、social preview、README 配图、项目视觉物料、icon、logo、画个图标、给项目整张图 — even very partial requests like just "生成横幅" or "给这个项目配个图" or "项目做完了,整点视觉素材". Also use it proactively right after finishing building a project when visual assets would help. Asset type, size, and style gaps are filled with smart defaults — never interrogate the user.
 ---
 

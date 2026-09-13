@@ -25,18 +25,18 @@
 
 ```bash
 # 全局生效（所有项目可用）
-cp -r project-visual-generator ~/.agents/skills/
+cp -r zcode-gpt-image2 ~/.agents/skills/
 
 # 或只在某个项目生效
-cp -r project-visual-generator <项目>/.agents/skills/
+cp -r zcode-gpt-image2 <项目>/.agents/skills/
 ```
 
 ## 配置（小白友好）
 
 **方式一（推荐）**：装好 skill 后直接对 ZCode 说"生成图标"，没配 Key 时 AI 会向你要
-Key 和接口地址，自动写入 `~/.zcode/project-visual-generator.json`。
+Key 和接口地址，自动写入 `~/.zcode/zcode-gpt-image2.json`。
 
-**方式二**：终端运行 `python project-visual-generator/scripts/generate_assets.py --setup`
+**方式二**：终端运行 `python zcode-gpt-image2/scripts/generate_assets.py --setup`
 
 **方式三**：环境变量 `OPENAI_API_KEY` + `OPENAI_BASE_URL`（服务器/CI 场景）。
 
@@ -53,7 +53,7 @@ Key 和接口地址，自动写入 `~/.zcode/project-visual-generator.json`。
 或直接命令行调用：
 
 ```bash
-python project-visual-generator/scripts/generate_assets.py \
+python zcode-gpt-image2/scripts/generate_assets.py \
   --name "MyProject" --desc "AI powered code reviewer" \
   --tech "Python AI CLI" --color "#8b5cf6" \
   --assets icon,banner --out ./docs/assets \
