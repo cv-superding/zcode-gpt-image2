@@ -17,7 +17,7 @@ Casual requests are the norm. Map whatever the user said to assets and defaults:
 
 | User says | Generate | Assumed |
 |---|---|---|
-| 生成横幅 / banner / 封面 / social preview | `banner` | 1280x640, opaque |
+| 生成横幅 / banner / 封面 / social preview | `banner` | 1280x640 (or 2K), poster with title + subtitle + feature chips |
 | 图标 / logo / icon | `icon` | 1024x1024, transparent bg |
 | 配图 / 插图 / README 配图 | `illustration` | 1200x624 |
 | 图标和横幅 / 视觉物料 / 整点素材 (unspecified) | `icon,banner` | defaults each |
@@ -69,6 +69,11 @@ used (e.g. "match the style and color of the reference image, keep its logo shap
 recognizable") and pass them via `--ref-images path1,path2` — this switches the
 script to the images/edits endpoint which fuses the reference style in.
 
+For banners, follow the poster recipes in `references/prompt-guide.md` and ROTATE
+styles between projects/generations (A reference-fusion / B cinematic scene /
+C hand-drawn / D game-poster) so results don't all look alike. Always render the
+project title as exact-quoted text in the image.
+
 ### 3. Run the script
 
 ```bash
@@ -94,6 +99,8 @@ with Pillow. The flags apply to every asset in one run — if the user wants
 different settings per asset (e.g. square 2K icon + 16:9 banner), run the script
 once per asset. Add:
 
+- `--trim` — auto-crop flat margins after generation; pass it for banners and
+  illustrations (AI images tend to leave large empty bands).
 - `--update-readme` — inserts banner + icon into `./README.md` after the first heading
   (run from the project root, or the script won't find the README).
 - `--icon-sizes 16,32,48,64,128,256,512` — exports the icon at multiple sizes
@@ -106,6 +113,9 @@ once per asset. Add:
 
 Generation takes ~30–90s per image. After the script finishes, Read each generated
 image to check it matches the project (correct metaphor, clean edges, no stray text).
+For banners with rendered text, verify EVERY character against the intended strings;
+if any character is wrong, regenerate once with the same prompt — still wrong,
+simplify the text (shorter subtitle, fewer chips) and try again.
 If one is off, refine the prompt and regenerate that single asset only — don't redo
 the ones that passed. Finally report the saved paths and whether the README was updated.
 

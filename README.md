@@ -1,7 +1,5 @@
 # zcode-gpt-image2
 
-<p align="center"><img src="docs/assets/icon-zcode-gpt-image2.png" width="96" alt="logo"></p>
-
 ![banner](docs/assets/banner-zcode-gpt-image2.png)
 
 一个 ZCode Skill：项目开发完成后，AI 自动提取项目特征、编写生图提示词，调用 OpenAI

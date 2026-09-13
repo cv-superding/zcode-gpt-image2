@@ -78,6 +78,48 @@ def resolve_relay_model(base_model, res, available):
     return base_model
 
 
+def trim_flat_margins(png_bytes, threshold=3, max_frac=0.35, padding=12):
+    """Auto-crop flat (low-detail) margins around the content, e.g. the empty
+    dark bands AI banners tend to leave. Crops at most max_frac of each side.
+    Returns (bytes, crop_box) — unchanged bytes when there is nothing to trim."""
+    import io
+    from PIL import Image
+
+    img = Image.open(io.BytesIO(png_bytes)).convert("RGB")
+    gray = img.convert("L")
+    w, h = gray.size
+    px = gray.load()
+
+    def line_detail(fixed, along, axis):
+        detail = 0
+        prev = px[fixed, 0] if axis == "col" else px[0, fixed]
+        for i in range(1, along):
+            cur = px[fixed, i] if axis == "col" else px[i, fixed]
+            detail = max(detail, abs(cur - prev))
+            prev = cur
+        return detail
+
+    def advance(start, stop, step, limit, axis):
+        pos = start
+        while pos != stop and (abs(pos - start) < limit) and \
+                line_detail(pos, w if axis == "row" else h, axis) < threshold:
+            pos += step
+        return pos
+
+    top = advance(0, h, 1, h * max_frac, "row")
+    bottom = advance(h - 1, 0, -1, h * max_frac, "row")
+    left = advance(0, w, 1, w * max_frac, "col")
+    right = advance(w - 1, 0, -1, w * max_frac, "col")
+
+    box = (max(0, left - padding), max(0, top - padding),
+           min(w, right + 1 + padding), min(h, bottom + 1 + padding))
+    if box == (0, 0, w, h):
+        return png_bytes, None
+    buf = io.BytesIO()
+    img.crop(box).save(buf, "PNG")
+    return buf.getvalue(), box
+
+
 def remove_white_background(png_bytes, threshold=243):
     """Turn a white background into transparency for icons.
 
@@ -505,6 +547,8 @@ def parse_args():
     p.add_argument("--prompt-illustration", default="", help="full prompt override for illustration")
     p.add_argument("--icon-sizes", default="",
                    help="comma list like 16,32,48,64,128,256,512 (needs Pillow)")
+    p.add_argument("--trim", action="store_true",
+                   help="auto-crop flat margins (recommended for banner/illustration)")
     p.add_argument("--update-readme", action="store_true",
                    help="insert banner/icon into ./README.md after the first heading")
     p.add_argument("--dry-run", action="store_true", help="print prompts and exit, no API call")
@@ -637,6 +681,17 @@ def main():
                         entry["background_removed"] = True
                 except Exception as err:  # noqa: BLE001 - keep the opaque image
                     print(f"  note: background removal skipped ({err})", file=sys.stderr)
+            if args.trim and asset in ("banner", "illustration"):
+                try:
+                    with open(out_path, "rb") as fh:
+                        raw = fh.read()
+                    trimmed, box = trim_flat_margins(raw)
+                    if box:
+                        with open(out_path, "wb") as fh:
+                            fh.write(trimmed)
+                        entry["trimmed"] = True
+                except Exception as err:  # noqa: BLE001 - keep the untrimmed image
+                    print(f"  note: trim skipped ({err})", file=sys.stderr)
             if asset == "icon" and args.icon_sizes:
                 sizes = [s.strip() for s in args.icon_sizes.split(",") if s.strip().isdigit()]
                 extra = export_icon_sizes(out_path, [int(s) for s in sizes], args.out, slug)

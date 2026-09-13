@@ -39,15 +39,39 @@ Example:
 
 ## Banner (1280x640 — GitHub social preview ratio)
 
-Composition rules:
+Default banner style is a **poster with text**: project title, one-line subtitle,
+and up to four feature chips. gpt-image-2.5-class models render short text well.
 
-- State the 2:1 wide layout explicitly.
-- Left two thirds: abstract tech visual evoking the project's domain, dominant color
-  over a deep dark gradient (dark backgrounds read well on GitHub).
-- Right third: calm, uncluttered area — GitHub overlays nothing, but users often add
-  the repo title there later.
-- No text in the image: generated text is a common failure point and repo titles are
-  better added by the user. End with "no text, no watermark".
+Text rules (critical — one wrong character ruins the banner):
+
+- Quote every string exactly: `title text reading exactly 'zcode-gpt-image2'`.
+- End with: "render all text exactly as written with correct characters, no other
+  text, no watermark".
+- Keep it short: 1 title + 1 subtitle + at most 4 chips of 4–6 characters each.
+  Chinese chips of 4–6 characters render more reliably than long sentences.
+- Layout: visual/emblem on one side, text block on the other; chips in a row at the
+  bottom of the text block.
+
+### Style recipes — ROTATE between them so different projects don't look alike
+
+**A. Reference-fusion poster** (when a brand icon is fused in): the emblem from the
+reference large on the left with accent glow, text block right, dark gradient
+background echoing the reference colors.
+
+**B. Cinematic scene**: full-bleed atmospheric background (deep sea, nebula,
+mountains at dawn — pick a metaphor for the project's domain), huge title over it,
+one-line slogan, small feature row at the bottom. Mood lighting, film-grade color.
+
+**C. Hand-drawn illustration**: warm paper / watercolor / ink texture, a charming
+hand-drawn metaphor object on the left, big display title and an English tagline on
+the right, imperfect edges, cozy and memorable.
+
+**D. Game-poster energy**: dynamic diagonal composition with the hero element
+bursting through, bold italic title, glowing rim light, feature chips as a bottom
+bar, small corner badges. Loud, high-saturation, made to impress.
+
+General composition rules still apply: dominant color as hex, state the 2:1 layout,
+no watermark. Say "render all text exactly as written" and nothing else textual.
 
 ## README illustration (1200x624)
 
