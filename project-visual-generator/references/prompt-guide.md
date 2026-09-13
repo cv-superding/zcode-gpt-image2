@@ -1,7 +1,27 @@
 # Prompt Guide for Project Visual Assets
 
-English prompts work best with gpt-image models. Write one self-contained prompt per
-asset; never chain multiple assets into one prompt.
+Distilled from OpenAI's official GPT Image 2.5 prompting guide
+(developers.openai.com/api/docs/guides/image-prompting) plus community practice.
+English prompts work best. Write one self-contained prompt per asset; never chain
+multiple assets into one prompt.
+
+## Universal rules (apply to every asset)
+
+1. **Define the result first**: name the deliverable (app icon, GitHub social
+   preview, README illustration), the project's purpose, and the composition.
+   For complex scenes organize as labeled sections: Scene / Subject / Details /
+   Constraints.
+2. **Describe what is visible**, not abstractions: materials, light source, colors,
+   medium. Say "photorealistic" or "flat vector" explicitly — never rely on mood
+   words alone. Camera/lens specs are appearance cues, not guarantees.
+3. **Exact text**: put required wording in quotes, state where it goes and its
+   typography, and say "render it exactly once, clearly and legibly". Spell unusual
+   words letter by letter. Always add "no extra text". After generation, verify
+   every character; small text or many chips may need a higher quality setting.
+4. **Iterate deliberately**: regenerate only the failed asset; change one thing at
+   a time; when editing, restate the constraints that must be preserved.
+5. **State exclusions**: unwanted text, logos, watermarks. A drawn checkerboard is
+   NOT transparency — real transparency comes only from an alpha channel.
 
 ## Style matching (pick color + aesthetic from tech stack)
 
@@ -18,39 +38,32 @@ If the user gave a primary color, use their color with the matching aesthetic ro
 
 ## Icon (1024x1024, transparent background)
 
-Composition rules:
+Follow the official logo pattern: describe the brand and the shapes that define the
+mark, then demand legibility. Key phrasings:
 
-- One single bold abstract symbol — a visual metaphor for what the project *does*
-  (e.g. a CLI tool that searches code → a stylized magnifier over brackets).
-- Rounded-square badge composition; flat vector, not 3D, not photographic.
-- High contrast, dominant color + white accent.
-- Must survive being viewed at 32px: say "recognizable at 32px".
-- Always end with: "no text, no letters, no watermark. Transparent background
-  around the rounded square."
+> "Use clean, vector-like shapes, a strong silhouette, and balanced negative space.
+> Favor simplicity over detail so it reads clearly at small and large sizes.
+> Flat design, minimal strokes, no gradients unless essential.
+> Fully transparent background. A single centered logo with generous padding,
+> clean alpha edges, no solid backdrop, scenery, checkerboard, or watermark."
 
-Example:
-
-> App icon for a code-review assistant: an AI agent that reviews pull requests.
-> Futuristic AI aesthetic, violet-to-indigo gradient glow. A single bold symbol of an
-> eye merged with a code merge arrow, rounded-square badge composition, dominant
-> color #8b5cf6, white accent. Flat vector, high contrast, instantly recognizable at
-> 32px, clean edges, no text, no letters, no watermark. Transparent background around
-> the rounded square.
+Compose the mark as ONE bold visual metaphor for what the project does (a CLI code
+searcher → magnifier over brackets). Dominant color as hex + white accent. End with
+"no text, no letters, no watermark". Mention "recognizable at 32px".
 
 ## Banner (1280x640 — GitHub social preview ratio)
 
 Default banner style is a **poster with text**: project title, one-line subtitle,
-and up to four feature chips. gpt-image-2.5-class models render short text well.
+and up to four feature chips.
 
 Text rules (critical — one wrong character ruins the banner):
 
 - Quote every string exactly: `title text reading exactly 'zcode-gpt-image2'`.
-- End with: "render all text exactly as written with correct characters, no other
-  text, no watermark".
+- Add "render it exactly once, clearly and legibly" and "no extra text".
 - Keep it short: 1 title + 1 subtitle + at most 4 chips of 4–6 characters each.
   Chinese chips of 4–6 characters render more reliably than long sentences.
-- Layout: visual/emblem on one side, text block on the other; chips in a row at the
-  bottom of the text block.
+- End with: "render all text exactly as written with correct characters, no other
+  text, no watermark".
 
 ### Style recipes — ROTATE between them so different projects don't look alike
 
@@ -70,22 +83,40 @@ the right, imperfect edges, cozy and memorable.
 bursting through, bold italic title, glowing rim light, feature chips as a bottom
 bar, small corner badges. Loud, high-saturation, made to impress.
 
-General composition rules still apply: dominant color as hex, state the 2:1 layout,
-no watermark. Say "render all text exactly as written" and nothing else textual.
+If the banner contains small text, chips, or more than two text blocks, consider
+`--res 2k` and/or `--quality high` — quality matters more than prompt wording for
+small type.
 
 ## README illustration (1200x624)
 
-Composition rules:
-
-- Thin line art with one gradient accent color, light background — must sit well on
-  both GitHub light and dark themes, so prefer near-white backgrounds with dark strokes.
+- Thin line art with one gradient accent color, near-white background with dark
+  strokes — must sit well on both GitHub light and dark themes.
 - Wide banner composition, simple and clear, fits technical documentation.
 - End with "no text, no watermark, clean vector style".
+
+## Using reference images (`--ref-images`, images/edits endpoint)
+
+1. **Assign roles**: identify each input by purpose — "image 1 is the brand emblem
+   whose shape must stay recognizable; match its palette and lighting".
+2. **Separate changes from constraints**: say "change only X" and list what must be
+   preserved (geometry, layout, colors, label legibility).
+3. **Style transfer phrasing**: "Use the same style from the input image and
+   generate ..." — describe the NEW subject separately from the borrowed style.
+4. **One change per edit**: don't stack style + text + layout changes in a single
+   regeneration; fix the failed aspect only.
+
+## Model notes (when the endpoint offers gpt-image-2.5 variants)
+
+- `gpt-image-2.5-flare` — small model, speed-optimized, quality comparable to
+  gpt-image-2. Good default for iteration.
+- `gpt-image-2.5-sunburst` — base model, higher quality than gpt-image-2. Use when
+  a demanding asset (text-dense banner, detailed illustration) fell short.
+- Both support transparent backgrounds. Start with flare; escalate to sunburst only
+  if quality is insufficient.
 
 ## General tips
 
 - Hex colors in the prompt (`#8b5cf6`) steer the palette more reliably than color names.
-- If the first result has stray text or watermarks, add "absolutely no typography of
-  any kind" and regenerate just that asset.
-- For icons, if the shape looks muddy at small size, simplify: fewer elements, one
-  symbol only.
+- If the first result has stray text or watermarks, add "no typography of any kind"
+  and regenerate just that asset.
+- For icons that look muddy at small size, simplify: fewer elements, one symbol only.

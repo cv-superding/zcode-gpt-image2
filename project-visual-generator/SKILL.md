@@ -47,8 +47,11 @@ AskUserQuestion). Only these two questions — everything else stays default:
    no reference, skip this question.
 2. **生图模型** — relays often offer several image models at different prices.
    Run `--list-models` to see what the endpoint offers, then offer 2–4 concrete
-   options (with prices if known). Skip when only one model exists or the user
-   already named one.
+   options (with prices if known). Per OpenAI's guide: gpt-image-2.5-flare is the
+   speed-optimized small model (good default for iteration), gpt-image-2.5-sunburst
+   is the quality-optimized base model (escalate when a text-dense or detailed
+   asset falls short). Skip when only one model exists or the user already named
+   one.
 
 If the user's request already answered a question (e.g. they pasted an image, or
 said 用ZCode图标风格), skip it. Ask nothing else.
