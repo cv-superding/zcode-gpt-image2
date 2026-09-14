@@ -31,16 +31,35 @@ cp -r zcode-gpt-image2 ~/.agents/skills/
 cp -r zcode-gpt-image2 <项目>/.agents/skills/
 ```
 
-## 配置（小白友好）
+## 配置（小白友好，无需环境变量）
 
-**方式一（推荐）**：装好 skill 后直接对 ZCode 说"生成图标"，没配 Key 时 AI 会向你要
-Key 和接口地址，自动写入 `~/.zcode/zcode-gpt-image2.json`。
+**方式一（推荐）：一条命令自己配。** 终端里运行：
 
-**方式二**：终端运行 `python zcode-gpt-image2/scripts/generate_assets.py --setup`
+```bash
+python zcode-gpt-image2/scripts/generate_assets.py --setup
+```
 
-**方式三**：环境变量 `OPENAI_API_KEY` + `OPENAI_BASE_URL`（服务器/CI 场景）。
+按提示输入 API Key 和中转站地址（回车跳过可保留默认），自动保存到配置文件。
 
-优先级：命令行参数 > 环境变量 > 配置文件。请勿把 Key 提交到任何仓库。
+**方式二：手动编辑配置文件。** 新建 `~/.zcode/project-visual-generator.json`
+（Windows 在 `C:\Users\<用户名>\.zcode\` 下）：
+
+```json
+{ "apiKey": "sk-...", "baseUrl": "https://你的中转站地址", "model": "gpt-image-2" }
+```
+
+**方式三：环境变量**（服务器/CI 场景）：
+
+```bash
+export OPENAI_API_KEY="sk-..."          # Windows: setx OPENAI_API_KEY "sk-..."
+export OPENAI_BASE_URL="https://中转站"  # Windows: setx OPENAI_BASE_URL "https://..."
+```
+
+> 不想手动配置？也可以把 Key 直接发到对话里让 AI 代写配置——但 Key 会留在聊天记录中，
+> 建议事后到中转站后台重置。优先推荐上面三种方式。
+
+读取优先级：命令行参数 > 环境变量 > 配置文件。`baseUrl` 带不带 `/v1` 都可以。
+请勿把含 Key 的配置文件提交到任何仓库。
 
 ## 使用
 

@@ -130,20 +130,26 @@ Check whether a key is available with a cheap dry-run:
 python "<skill-dir>/scripts/generate_assets.py" --name t --desc t --dry-run
 ```
 
-If `"apiKeyConfigured": false`, help the user configure — they must NOT need to touch
-environment variables. Ask them in chat for two things only: their API key (many
-Chinese users use a relay/中转站, so also ask for the relay base URL), then write it
-to the config file yourself with your file tools:
+If `"apiKeyConfigured": false`, guide the user to configure it THEMSELVES. Do NOT
+ask them to paste the key into chat — it would land in the conversation history.
+Offer these options in order, with exact copy-paste commands for their OS:
 
-```json
-// ~/.zcode/project-visual-generator.json
-{ "apiKey": "sk-...", "baseUrl": "https://relay-address.com", "model": "gpt-image-2" }
-```
+1. **Interactive setup (easiest)** — run in any terminal:
+   `python "<skill-dir>/scripts/generate_assets.py" --setup`
+   It asks for API key, relay base URL (中转站地址), and model, then saves the
+   config itself.
+2. **Manual config file** — create `~/.zcode/project-visual-generator.json`
+   (Windows: `C:\Users\<用户名>\.zcode\project-visual-generator.json`):
+   ```json
+   { "apiKey": "sk-...", "baseUrl": "https://relay-address.com", "model": "gpt-image-2" }
+   ```
+3. **Environment variables** — `OPENAI_API_KEY` + `OPENAI_BASE_URL`
+   (servers / CI; Windows: `setx`).
 
-Never repeat the full key back in chat, and never write the key into any file inside
-a git repository. Alternatively the user can run
-`python "<skill-dir>/scripts/generate_assets.py" --setup` in a terminal for an
-interactive prompt. Priority order: CLI flags > environment variables > config file.
+Only as a LAST RESORT — user truly cannot manage any of the above — may they paste
+the key into chat. Then: write it into the config file yourself, never repeat the
+full key back, and remind them the key now lives in the chat history so they should
+rotate it later. Never write the key into any file inside a git repository.
 `baseUrl` accepts the relay address with or without a trailing `/v1`.
 
 ## Error handling
