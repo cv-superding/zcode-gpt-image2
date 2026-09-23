@@ -28,7 +28,7 @@ import time
 import urllib.error
 import urllib.request
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 DEFAULT_MODEL = "gpt-image-2"
 CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".zcode", "project-visual-generator.json")
