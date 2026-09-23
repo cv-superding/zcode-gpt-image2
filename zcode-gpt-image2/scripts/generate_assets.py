@@ -328,22 +328,35 @@ def run_setup():
         cfg["model"] = model
 
     key = ""
+    url_changed = url and url != cfg.get("baseUrl", "")
     while True:
         masked = '*' * 6 + current_key[-4:] if current_key else 'not set'
-        key = input(f"API key [{masked}] (paste, Enter to keep current): ").strip()
+        hint = "Enter to keep current" if current_key else "Enter to skip"
+        key = input(f"API key [{masked}] ({hint}): ").strip()
         if not key and current_key:
             key = current_key  # keep existing
         if not key:
             print("  no key entered; generation will fail until a key is configured")
             break
+        if key == current_key and not url_changed:
+            print("  keeping current key (unchanged, already verified earlier)")
+            break
         print("  verifying key against the endpoint ...")
         ids = fetch_model_ids(key, cfg.get("baseUrl", ""), timeout=20)
         if ids is None:
             retry = input("  key check FAILED (wrong key, bad URL or no network). "
-                          "re-enter? [Y/n]: ").strip().lower()
-            if retry == 'n':
+                          "[r]e-enter / [k]eep anyway / [c]ancel key (save without it)? [r/k/c]: "
+                          ).strip().lower()
+            if retry == 'k':
+                cfg["apiKey"] = key
+                print("  kept WITHOUT verification — generation may fail with 401.")
                 break
-            continue
+            if retry == 'c':
+                key = ""
+                cfg.pop("apiKey", None)
+                print("  key removed from config.")
+                break
+            continue  # re-enter (default)
         cfg["apiKey"] = key
         print(f"  key OK — endpoint offers {len(ids)} models.")
         break
