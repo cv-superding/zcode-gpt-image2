@@ -73,9 +73,12 @@ recognizable") and pass them via `--ref-images path1,path2` — this switches th
 script to the images/edits endpoint which fuses the reference style in.
 
 For banners, follow the poster recipes in `references/prompt-guide.md` and ROTATE
-styles between projects/generations (A reference-fusion / B cinematic scene /
-C hand-drawn / D game-poster) so results don't all look alike. Always render the
-project title as exact-quoted text in the image.
+styles between projects/generations (A reference-fusion / B cinematic / C hand-drawn /
+D game-poster / E anime / F painterly) so results don't all look alike — default to
+E (anime) or F (painterly) unless a reference image suggests otherwise. Always render
+the project title as exact-quoted text in the image, and place the text block
+VERTICALLY CENTERED ("vertically centered in the banner, visually middle-aligned") —
+never top- or bottom-stuck.
 
 ### 3. Run the script
 

@@ -65,7 +65,19 @@ Text rules (critical — one wrong character ruins the banner):
 - End with: "render all text exactly as written with correct characters, no other
   text, no watermark".
 
-### Style recipes — ROTATE between them so different projects don't look alike
+### Style recipes — ROTATE between them so different projects don't look alike.
+**Default preference (user-confirmed): recipe F, Ghibli-esque painterly** — warm
+hand-painted skies, soft clouds, a small figure doing something related to the
+project, big hand-lettered title. Unless a reference image or the project's tone
+clearly calls for another recipe, generate F first and offer alternatives after.
+
+Typography defaults (user-confirmed):
+- Title is LARGE — the most prominent element ("HUGE BOLD title text", "big bold
+  lettering, the most prominent element, clearly readable").
+- Text block VERTICALLY CENTERED in the banner, visually middle-aligned.
+- Feature chips in ONE single horizontal row.
+- The user responded very well to: hand-lettered title + white/colored painted
+  chips on the open sky area of the composition.
 
 **A. Reference-fusion poster** (when a brand icon is fused in): the emblem from the
 reference large on the left with accent glow, text block right, dark gradient
@@ -82,6 +94,20 @@ the right, imperfect edges, cozy and memorable.
 **D. Game-poster energy**: dynamic diagonal composition with the hero element
 bursting through, bold italic title, glowing rim light, feature chips as a bottom
 bar, small corner badges. Loud, high-saturation, made to impress.
+
+**E. Anime illustration (user favorite)**: clean cel-shaded anime style, crisp line
+art, vibrant but soft palette, atmospheric sky or city backdrop with light bloom.
+One anime character mascot or an anime-styled scene embodying the project's purpose.
+Title and subtitle BLOCK VERTICALLY CENTERED, never top- or bottom-crowded.
+
+**F. Ghibli-esque painterly**: warm hand-painted gouache skies, gentle clouds,
+nostalgic mood, soft edges; small figures in a big landscape that hints at the
+project's domain; title vertically centered in the clearer sky area.
+
+Text-block placement rule (all recipes): when the banner carries a title/subtitle,
+the text block is VERTICALLY CENTERED within the banner — visually middle-aligned,
+not stuck to the top or bottom edge. Phrase it as: "title and subtitle text block
+vertically centered in the banner, visually middle-aligned".
 
 If the banner contains small text, chips, or more than two text blocks, consider
 `--res 2k` and/or `--quality high` — quality matters more than prompt wording for
