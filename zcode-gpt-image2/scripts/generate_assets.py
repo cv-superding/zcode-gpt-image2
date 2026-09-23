@@ -319,18 +319,41 @@ def run_setup():
     print("Project Visual Generator setup")
     print(f"Config file: {CONFIG_PATH}\n")
     current_key = cfg.get("apiKey", "")
-    key = input(f"API key [{'*' * 6 + current_key[-4:] if current_key else 'not set'}]: ").strip()
     url = input(f"Base URL [{cfg.get('baseUrl') or 'https://api.openai.com'}] "
                 "(relay/proxy address, blank to keep): ").strip()
-    model = input(f"Model [{cfg.get('model') or DEFAULT_MODEL}]: ").strip()
-    if key:
-        cfg["apiKey"] = key
     if url:
         cfg["baseUrl"] = url
+    model = input(f"Model [{cfg.get('model') or DEFAULT_MODEL}]: ").strip()
     if model:
         cfg["model"] = model
+
+    key = ""
+    while True:
+        masked = '*' * 6 + current_key[-4:] if current_key else 'not set'
+        key = input(f"API key [{masked}] (paste, Enter to keep current): ").strip()
+        if not key and current_key:
+            key = current_key  # keep existing
+        if not key:
+            print("  no key entered; generation will fail until a key is configured")
+            break
+        print("  verifying key against the endpoint ...")
+        ids = fetch_model_ids(key, cfg.get("baseUrl", ""), timeout=20)
+        if ids is None:
+            retry = input("  key check FAILED (wrong key, bad URL or no network). "
+                          "re-enter? [Y/n]: ").strip().lower()
+            if retry == 'n':
+                break
+            continue
+        cfg["apiKey"] = key
+        print(f"  key OK — endpoint offers {len(ids)} models.")
+        break
+
     write_config(cfg)
-    print(f"\nSaved to {CONFIG_PATH}. You can now generate assets.")
+    if cfg.get("apiKey"):
+        print(f"\nSaved to {CONFIG_PATH}. You can now generate assets.")
+    else:
+        print(f"\nSaved to {CONFIG_PATH} WITHOUT a key. Configure one before "
+              "generating (rerun setup or edit the file).")
 
 
 # ---------------------------------------------------------------------------
