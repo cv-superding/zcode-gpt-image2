@@ -152,6 +152,14 @@ full key back, and remind them the key now lives in the chat history so they sho
 rotate it later. Never write the key into any file inside a git repository.
 `baseUrl` accepts the relay address with or without a trailing `/v1`.
 
+## Account status & multi-account failover
+
+- `--status` — shows account expiry (受限截止时间), quota and rate-limit hints.
+  Run it when the user asks "我的号还能用吗 / 被限了吗".
+- `--add-account` — registers a backup key+URL in `cfg["accounts"]`. When the
+  primary hits 401/403/429 the script rotates to the next account automatically.
+  Suggest adding one when the user reports frequent throttling.
+
 ## Error handling
 
 - The script retries 429/5xx three times with backoff. If all attempts fail, surface

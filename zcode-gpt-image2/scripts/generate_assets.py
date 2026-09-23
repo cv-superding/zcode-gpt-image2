@@ -369,6 +369,51 @@ def run_setup():
               "generating (rerun setup or edit the file).")
 
 
+
+def show_account_status(api_key, base_url, proxy="", timeout=20):
+    """Query relay account/token status: quota, expiry, rate limits.
+
+    Works with new-api style relays (billing endpoints); degrades gracefully
+    on relays that do not expose them. Never prints the key itself.
+    """
+    opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler(
+            {"http": proxy, "https": proxy} if proxy else {}))
+
+    def get(path):
+        req = urllib.request.Request(resolve_base_url(base_url) + path, headers={
+            "Authorization": f"Bearer {api_key}", "User-Agent": BROWSER_UA})
+        try:
+            with opener.open(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as err:
+            return {"_http_error": err.code, "_detail": err.read().decode("utf-8", "replace")[:200]}
+        except Exception as err:  # noqa: BLE001
+            return {"_error": str(err)[:200]}
+
+    out = {}
+    sub = get("/dashboard/billing/subscription")
+    if isinstance(sub, dict) and "object" in sub:
+        import datetime
+        access_until = sub.get("access_until")
+        out["account_expires"] = (datetime.datetime.fromtimestamp(access_until).strftime("%Y-%m-%d %H:%M")
+                                  if access_until else "unknown")
+        hard = sub.get("hard_limit_usd")
+        if hard is not None and hard > 1_000_000:
+            out["quota"] = "unlimited (very large hard limit)"
+        elif hard:
+            usage = get("/dashboard/billing/usage")
+            used = usage.get("total_usage", 0) / 100 if isinstance(usage, dict) else 0
+            out["quota"] = f"${used:.2f} used of ${hard:.2f}"
+    else:
+        out["quota"] = "not exposed by this relay"
+
+    # Request-limit headers only appear on an actual generation call; document it.
+    out["rate_limits"] = ("RPM/RPD headers appear on generation responses (HTTP 429 "
+                          "with Retry-After means throttled). See 'x-ratelimit-*' there.")
+    print(json.dumps(out, ensure_ascii=False, indent=2))
+
+
 # ---------------------------------------------------------------------------
 # API client
 # ---------------------------------------------------------------------------
@@ -486,6 +531,17 @@ def call_api(prompt, size, quality, background, model, api_key, base_url, timeou
                 if err.code == 400 and vi < len(variants) - 1:
                     rejected = True  # deterministic: retry with the next payload variant
                     break
+                if err.code in (401, 403):
+                    raise RuntimeError(
+                        f"HTTP {err.code}: key rejected by the endpoint "
+                        f"({detail[:150]}). Check account status/quota with: "
+                        "generate_assets.py --status. Do not retry.") from err
+                if err.code == 429:
+                    retry_after = err.headers.get("retry-after") if err.headers else None
+                    wait = int(retry_after) if retry_after and retry_after.isdigit() else 30
+                    print(f"  rate limited (429), waiting {wait}s ...", file=sys.stderr)
+                    time.sleep(min(wait, 120))
+                    continue  # does not count against the 3 attempts
                 print(f"  attempt {attempt + 1} failed: {detail}", file=sys.stderr)
                 if attempt < 2:
                     time.sleep(10 * (attempt + 1))
@@ -586,11 +642,16 @@ def parse_args():
                         "images/edits endpoint so the style of the reference(s) is fused in")
     p.add_argument("--list-models", action="store_true",
                    help="list image-generation models offered by the endpoint and exit")
+    p.add_argument("--status", action="store_true",
+                   help="show relay account status: quota, expiry, rate-limit hints")
     p.add_argument("--config", default="", help=f"alternative config file (default: {CONFIG_PATH})")
     p.add_argument("--proxy", default="", help="HTTP proxy for the API call, e.g. http://127.0.0.1:7897 "
                                                "(defaults to 'proxy' field in config file)")
     p.add_argument("--setup", action="store_true",
                    help="interactive setup: write API key / base URL to the config file")
+    p.add_argument("--add-account", action="store_true",
+                   help="add a backup account (key + relay URL) for automatic "
+                        "failover when the primary hits 401/403/429")
     p.add_argument("--prompt-icon", default="", help="full prompt override for icon")
     p.add_argument("--prompt-banner", default="", help="full prompt override for banner")
     p.add_argument("--prompt-illustration", default="", help="full prompt override for illustration")
@@ -604,16 +665,61 @@ def parse_args():
     return p.parse_args()
 
 
+def load_accounts(cfg, args):
+    """Build the account pool. Primary = flags > env > config; extra accounts come
+    from cfg["accounts"] = [{"apiKey","baseUrl"}, ...] (used on 401/403/429)."""
+    pool = [{"apiKey": args.api_key or os.environ.get("OPENAI_API_KEY") or cfg.get("apiKey", ""),
+             "baseUrl": args.base_url or os.environ.get("OPENAI_BASE_URL") or cfg.get("baseUrl", ""),
+             "label": "primary"}]
+    for i, acc in enumerate(cfg.get("accounts", []) or []):
+        if isinstance(acc, dict) and acc.get("apiKey"):
+            pool.append({"apiKey": acc["apiKey"],
+                         "baseUrl": acc.get("baseUrl", pool[0]["baseUrl"]),
+                         "label": f"account{i + 2}"})
+    return [a for a in pool if a["apiKey"]]
+
+
+def run_add_account():
+    """Append a backup account to cfg["accounts"] with key verification."""
+    cfg = load_config()
+    accounts = cfg.setdefault("accounts", [])
+    print(f"Add backup account #{len(accounts) + 1}")
+    url = input("Relay base URL (blank = same as primary): ").strip()
+    key = input("API key: ").strip()
+    if not key:
+        print("no key entered; nothing added")
+        return
+    print("  verifying ...")
+    ids = fetch_model_ids(key, url or cfg.get("baseUrl", ""), timeout=20)
+    if ids is None:
+        print("  key check FAILED — account NOT added. Fix the key/URL and retry.")
+        return
+    accounts.append({"apiKey": key, "baseUrl": url} if url else {"apiKey": key})
+    write_config(cfg)
+    print(f"  key OK ({len(ids)} models). Backup account saved — total {len(accounts) + 1}.")
+
+
 def main():
     args = parse_args()
     if args.setup:
         run_setup()
         return 0
+    if args.add_account:
+        run_add_account()
+        return 0
 
     cfg = load_config(args.config)
-    api_key = args.api_key or os.environ.get("OPENAI_API_KEY") or cfg.get("apiKey", "")
-    base_url = args.base_url or os.environ.get("OPENAI_BASE_URL") or cfg.get("baseUrl", "")
     proxy = args.proxy or cfg.get("proxy", "")
+    accounts = load_accounts(cfg, args)
+    api_key = accounts[0]["apiKey"] if accounts else ""
+    base_url = accounts[0]["baseUrl"] if accounts else ""
+
+    if args.status:
+        if not api_key:
+            print("error: no API key configured", file=sys.stderr)
+            return 1
+        show_account_status(api_key, base_url, proxy)
+        return 0
 
     if args.list_models:
         if not api_key:
@@ -704,6 +810,7 @@ def main():
 
     results = []
     ok = True
+    account_idx = 0  # rotates on 401/403 or final 429: multi-account failover
     for asset in assets:
         spec = ASSET_SPECS[asset]
         background = args.background if args.background != "auto" else spec["background"]
@@ -711,12 +818,29 @@ def main():
         out_path = os.path.join(args.out, f"{asset}-{slug}.png")
         print(f"[{asset}] generating {size} ({background}) -> {out_path}")
         try:
-            if ref_images:
-                content = call_api_edits(prompts[asset], size, model, ref_images,
-                                         api_key, base_url, proxy=proxy)
-            else:
-                content = call_api(prompts[asset], size, args.quality, background,
-                                   model, api_key, base_url, proxy=proxy)
+            content = None
+            last_rotate_err = None
+            for attempt_account in range(len(accounts)):
+                acc = accounts[account_idx]
+                try:
+                    if ref_images:
+                        content = call_api_edits(prompts[asset], size, model, ref_images,
+                                                 acc["apiKey"], acc["baseUrl"], proxy=proxy)
+                    else:
+                        content = call_api(prompts[asset], size, args.quality, background,
+                                           model, acc["apiKey"], acc["baseUrl"], proxy=proxy)
+                    break
+                except RuntimeError as err:
+                    msg = str(err)
+                    if ("HTTP 401" in msg or "HTTP 403" in msg or "HTTP 429" in msg)                             and len(accounts) > 1:
+                        account_idx = (account_idx + 1) % len(accounts)
+                        print(f"  switching to {accounts[account_idx]['label']} "
+                              f"({account_idx + 1}/{len(accounts)})", file=sys.stderr)
+                        last_rotate_err = err
+                        continue
+                    raise
+            if content is None and last_rotate_err:
+                raise last_rotate_err
             save_image(content, out_path)
             entry = {"type": asset, "path": out_path, "status": "ok"}
             if background == "transparent" and not ref_images:
