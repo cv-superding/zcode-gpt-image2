@@ -134,48 +134,60 @@ def remove_white_background(png_bytes, threshold=243):
     if img.getchannel("A").getextrema()[0] < 250:
         return png_bytes, False  # API already returned real transparency
     w, h = img.size
-    px = img.load()
+    # Work on a flat RGB bytearray for the flood fill: ~50x faster than
+    # per-pixel load()/store() on a 1024x1024 icon.
+    rgb = img.convert("RGB").tobytes()
     visited = bytearray(w * h)
     queue = deque()
-    for x in range(w):
-        queue.append((x, 0))
-        queue.append((x, h - 1))
-    for y in range(h):
-        queue.append((0, y))
-        queue.append((w - 1, y))
 
-    def is_white(p):
-        return p[0] >= threshold and p[1] >= threshold and p[2] >= threshold
+    def pixel(i):
+        return rgb[i * 3], rgb[i * 3 + 1], rgb[i * 3 + 2]
+
+    def is_white(i):
+        return rgb[i * 3] >= threshold and rgb[i * 3 + 1] >= threshold \
+            and rgb[i * 3 + 2] >= threshold
+
+    for x in range(w):
+        queue.append(x)
+        queue.append((h - 1) * w + x)
+    for y in range(h):
+        queue.append(y * w)
+        queue.append(y * w + w - 1)
 
     while queue:
-        x, y = queue.popleft()
-        idx = y * w + x
-        if visited[idx]:
+        i = queue.popleft()
+        if visited[i] or not is_white(i):
             continue
-        p = px[x, y]
-        if not is_white(p):
-            continue
-        visited[idx] = 1
-        px[x, y] = (p[0], p[1], p[2], 0)
-        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            nx, ny = x + dx, y + dy
-            if 0 <= nx < w and 0 <= ny < h and not visited[ny * w + nx]:
-                queue.append((nx, ny))
+        visited[i] = 1
+        x, y = i % w, i // w
+        if x > 0 and not visited[i - 1]:
+            queue.append(i - 1)
+        if x < w - 1 and not visited[i + 1]:
+            queue.append(i + 1)
+        if y > 0 and not visited[i - w]:
+            queue.append(i - w)
+        if y < h - 1 and not visited[i + w]:
+            queue.append(i + w)
 
-    # Feather: soften semi-white pixels that touch the removed region
+    # Vectorized pass: rebuild alpha from the visited mask, feathering semi-white
+    # pixels adjacent to the removed region.
+    px = img.load()
+    mask = bytes(1 if visited[i] else 0 for i in range(w * h))
     for y in range(h):
+        row = y * w
         for x in range(w):
-            idx = y * w + x
-            if visited[idx]:
+            i = row + x
+            if mask[i]:
+                px[x, y] = (px[x, y][0], px[x, y][1], px[x, y][2], 0)
                 continue
-            p = px[x, y]
-            lum = (p[0] + p[1] + p[2]) / 3
-            if lum >= 200 and any(
-                0 <= x + dx < w and 0 <= y + dy < h and visited[(y + dy) * w + x + dx]
-                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
-            ):
-                px[x, y] = (p[0], p[1], p[2],
-                            max(0, min(255, int(255 * (threshold - lum) / 43))))
+            r, g, b, _ = px[x, y]
+            lum = (r + g + b) / 3
+            near_removed = (
+                (x > 0 and mask[i - 1]) or (x < w - 1 and mask[i + 1])
+                or (y > 0 and mask[i - w]) or (y < h - 1 and mask[i + w]))
+            if lum >= 200 and near_removed:
+                alpha = max(0, min(255, int(255 * (threshold - lum) / 43)))
+                px[x, y] = (r, g, b, alpha)
     buf = io.BytesIO()
     img.save(buf, "PNG")
     return buf.getvalue(), True
@@ -489,7 +501,7 @@ def update_readme(banner_path, icon_path, readme_path):
         return "skipped (no README.md found)"
     with open(readme_path, "r", encoding="utf-8") as fh:
         text = fh.read()
-    if "<!-- visual-assets" in text:
+    if "visual-assets:" in text or "alt=\"banner\"" in text:
         return "skipped (visual assets already present)"
     lines = text.splitlines(keepends=True)
     insert_at = 0
@@ -497,9 +509,9 @@ def update_readme(banner_path, icon_path, readme_path):
         if line.lstrip().startswith("# "):
             insert_at = i + 1
             break
-    block = []
+    block = ["<!-- visual-assets:auto-generated do not edit -->\n"]
     if icon_path:
-        block.append(f'\n<p align="center"><img src="{icon_path}" width="96" alt="icon"></p>\n')
+        block.append(f'<p align="center"><img src="{icon_path}" width="96" alt="icon"></p>\n')
     if banner_path:
         block.append(f'<p align="center"><img src="{banner_path}" alt="banner"></p>\n')
     lines[insert_at:insert_at] = block
@@ -522,7 +534,8 @@ def parse_args():
                    help="comma list of: icon,banner,illustration (default: icon,banner)")
     p.add_argument("--ratio", default="", help="aspect ratio W:H, e.g. 16:9, 9:16, 1:1 (max 3:1)")
     p.add_argument("--res", default="", choices=["", "1k", "2k", "4k"],
-                   help="resolution tier; long edge 1280/2560/3840 (default: 2k when --ratio is given)")
+                   help="resolution tier; long edge 1024/2048/4096 (maps to relay "
+                        "tier models when offered)")
     p.add_argument("--out", default="./docs/assets", help="output directory")
     p.add_argument("--model", default="", help="base model, e.g. gpt-image-2 (default; "
                                                "--res appends the tier suffix automatically)")
@@ -606,9 +619,9 @@ def main():
 
     if not api_key and not args.dry_run:
         print("error: no API key found. Fix it in any of these ways:\n"
-              "  1. paste your key into the chat and let the agent write it to "
-              f"{CONFIG_PATH}\n"
-              "  2. run: python generate_assets.py --setup\n"
+              "  1. run: python generate_assets.py --setup  (interactive)\n"
+              f"  2. write the key into {CONFIG_PATH} yourself:\n"
+              '     { "apiKey": "sk-...", "baseUrl": "https://relay/v1" }\n'
               "  3. set the OPENAI_API_KEY environment variable", file=sys.stderr)
         return 1
 
@@ -670,7 +683,10 @@ def main():
                                    model, api_key, base_url, proxy=proxy)
             save_image(content, out_path)
             entry = {"type": asset, "path": out_path, "status": "ok"}
-            if background == "transparent":
+            if background == "transparent" and not ref_images:
+                # With reference images the background is part of the fused style;
+                # stripping it can destroy the design, so only plain generations
+                # get the white-to-alpha post-processing.
                 try:
                     with open(out_path, "rb") as fh:
                         raw = fh.read()
@@ -705,9 +721,12 @@ def main():
     if ok and args.update_readme:
         banner = next((r["path"] for r in results if r["type"] == "banner"), "")
         icon = next((r["path"] for r in results if r["type"] == "icon"), "")
-        banner_rel = os.path.relpath(banner, ".") if banner else ""
-        icon_rel = os.path.relpath(icon, ".") if icon else ""
-        status = update_readme(banner_rel.replace("\\", "/"), icon_rel.replace("\\", "/"), "README.md")
+        readme_dir = os.path.dirname(os.path.abspath("README.md"))
+        # README image paths must be relative to the README's own location,
+        # not to whatever directory the script happens to run from.
+        banner_rel = os.path.relpath(os.path.abspath(banner), readme_dir).replace("\\", "/") if banner else ""
+        icon_rel = os.path.relpath(os.path.abspath(icon), readme_dir).replace("\\", "/") if icon else ""
+        status = update_readme(banner_rel, icon_rel, "README.md")
         print(f"README: {status}")
     return 0 if ok else 1
 
