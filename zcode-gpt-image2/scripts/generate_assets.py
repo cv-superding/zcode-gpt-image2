@@ -28,6 +28,8 @@ import time
 import urllib.error
 import urllib.request
 
+__version__ = "1.1.0"
+
 DEFAULT_MODEL = "gpt-image-2"
 CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".zcode", "project-visual-generator.json")
 
@@ -618,6 +620,7 @@ def update_readme(banner_path, icon_path, readme_path):
 
 def parse_args():
     p = argparse.ArgumentParser(description="Generate project visual assets via gpt-image-2")
+    p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     p.add_argument("--name", default="", help="project name")
     p.add_argument("--desc", default="", help="one-line project description")
     p.add_argument("--tech", default="", help="tech stack, e.g. 'Python AI CLI tool'")
