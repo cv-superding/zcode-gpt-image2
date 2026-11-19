@@ -163,6 +163,19 @@ rotate it later. Never write the key into any file inside a git repository.
   primary hits 401/403/429 the script rotates to the next account automatically.
   Suggest adding one when the user reports frequent throttling.
 
+## Multi-platform notes
+
+Different relays route image models differently — the script adapts automatically:
+
+- Standard relays (new-api style, e.g. bjzy): image models on `/v1/images/generations`,
+  optional tier model names (`gpt-image-2-2k`), tier auto-detected via `/v1/models`.
+- Agnes-style relays (agnes-ai.cn): image models (`agnes-image-*`) live on
+  `/v1/chat/completions` — the script detects the "use chat/completions" 400 error
+  and retries there automatically, extracting the image URL from the reply.
+- Multi-account: `cfg["accounts"]` entries may each carry their own `"model"`
+  (e.g. agnes entries set `"model": "agnes-image-2.5-flash"`). On 401/403/429 of the
+  primary the script rotates to the next account AND its model.
+
 ## Error handling
 
 - The script retries 429/5xx three times with backoff. If all attempts fail, surface

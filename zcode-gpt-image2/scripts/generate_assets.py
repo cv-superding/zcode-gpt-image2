@@ -492,6 +492,47 @@ def call_api_edits(prompt, size, model, ref_images, api_key, base_url, timeout=3
     raise RuntimeError(f"image generation failed after retries: {last_err}")
 
 
+def call_api_chat_image(prompt, size, model, api_key, base_url, timeout=300, proxy=""):
+    """Agnes-style relays: image models live on /v1/chat/completions and the
+    reply contains a markdown image link or an image_url field."""
+    url = resolve_base_url(base_url) + "/chat/completions"
+    payload = {"model": model, "messages": [{"role": "user", "content": prompt}]}
+    opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler(
+            {"http": proxy, "https": proxy} if proxy else {}))
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json",
+               "User-Agent": BROWSER_UA}
+    last_err = None
+    for attempt in range(3):
+        req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"),
+                                     headers=headers, method="POST")
+        try:
+            with opener.open(req, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            content = data["choices"][0]["message"].get("content", "")
+            # markdown image: ![...](url)
+            m = re.search(r"!\[[^\]]*\]\((https?://[^)]+)\)", content)
+            if not m:
+                m = re.search(r"(https?://\S+\.(?:png|jpg|jpeg|webp))", content)
+            if m:
+                img_req = urllib.request.Request(m.group(1), headers={"User-Agent": BROWSER_UA})
+                with opener.open(img_req, timeout=timeout) as img:
+                    return img.read()
+            raise RuntimeError(f"chat reply contained no image URL: {content[:120]}")
+        except urllib.error.HTTPError as err:
+            detail = err.read().decode("utf-8", "replace")[:300]
+            last_err = RuntimeError(f"HTTP {err.code}: {detail}")
+            print(f"  attempt {attempt + 1} failed: {detail}", file=sys.stderr)
+            if attempt < 2:
+                time.sleep(10 * (attempt + 1))
+        except (urllib.error.URLError, RuntimeError, KeyError) as err:
+            last_err = err
+            print(f"  attempt {attempt + 1} failed: {err}", file=sys.stderr)
+            if attempt < 2:
+                time.sleep(10 * (attempt + 1))
+    raise RuntimeError(f"chat-image generation failed after retries: {last_err}")
+
+
 def call_api(prompt, size, quality, background, model, api_key, base_url, timeout=300,
              proxy=""):
     url = resolve_base_url(base_url) + "/images/generations"
@@ -530,6 +571,11 @@ def call_api(prompt, size, quality, background, model, api_key, base_url, timeou
             except urllib.error.HTTPError as err:
                 detail = err.read().decode("utf-8", "replace")[:300]
                 last_err = RuntimeError(f"HTTP {err.code}: {detail}")
+                if err.code == 400 and "chat" in detail and "chat/completions" in detail:
+                    print("  relay routes this model via chat/completions; retrying there",
+                          file=sys.stderr)
+                    return call_api_chat_image(prompt, size, model, api_key, base_url,
+                                               timeout=timeout, proxy=proxy)
                 if err.code == 400 and vi < len(variants) - 1:
                     rejected = True  # deterministic: retry with the next payload variant
                     break
@@ -673,11 +719,13 @@ def load_accounts(cfg, args):
     from cfg["accounts"] = [{"apiKey","baseUrl"}, ...] (used on 401/403/429)."""
     pool = [{"apiKey": args.api_key or os.environ.get("OPENAI_API_KEY") or cfg.get("apiKey", ""),
              "baseUrl": args.base_url or os.environ.get("OPENAI_BASE_URL") or cfg.get("baseUrl", ""),
+             "model": cfg.get("model", ""),
              "label": "primary"}]
     for i, acc in enumerate(cfg.get("accounts", []) or []):
         if isinstance(acc, dict) and acc.get("apiKey"):
             pool.append({"apiKey": acc["apiKey"],
                          "baseUrl": acc.get("baseUrl", pool[0]["baseUrl"]),
+                         "model": acc.get("model", ""),
                          "label": f"account{i + 2}"})
     return [a for a in pool if a["apiKey"]]
 
@@ -825,13 +873,14 @@ def main():
             last_rotate_err = None
             for attempt_account in range(len(accounts)):
                 acc = accounts[account_idx]
+                acc_model = acc.get("model") or model
                 try:
                     if ref_images:
-                        content = call_api_edits(prompts[asset], size, model, ref_images,
+                        content = call_api_edits(prompts[asset], size, acc_model, ref_images,
                                                  acc["apiKey"], acc["baseUrl"], proxy=proxy)
                     else:
                         content = call_api(prompts[asset], size, args.quality, background,
-                                           model, acc["apiKey"], acc["baseUrl"], proxy=proxy)
+                                           acc_model, acc["apiKey"], acc["baseUrl"], proxy=proxy)
                     break
                 except RuntimeError as err:
                     msg = str(err)
