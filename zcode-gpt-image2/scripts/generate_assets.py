@@ -701,6 +701,10 @@ def parse_args():
     p.add_argument("--add-account", action="store_true",
                    help="add a backup account (key + relay URL) for automatic "
                         "failover when the primary hits 401/403/429")
+    p.add_argument("--account", default="", metavar="N",
+                   help="1-based index of the account to use as primary "
+                        "(see the accounts list in the config file); the rest "
+                        "remain as failover backups")
     p.add_argument("--prompt-icon", default="", help="full prompt override for icon")
     p.add_argument("--prompt-banner", default="", help="full prompt override for banner")
     p.add_argument("--prompt-illustration", default="", help="full prompt override for illustration")
@@ -716,17 +720,34 @@ def parse_args():
 
 def load_accounts(cfg, args):
     """Build the account pool. Primary = flags > env > config; extra accounts come
-    from cfg["accounts"] = [{"apiKey","baseUrl"}, ...] (used on 401/403/429)."""
-    pool = [{"apiKey": args.api_key or os.environ.get("OPENAI_API_KEY") or cfg.get("apiKey", ""),
-             "baseUrl": args.base_url or os.environ.get("OPENAI_BASE_URL") or cfg.get("baseUrl", ""),
-             "model": cfg.get("model", ""),
-             "label": "primary"}]
+    from cfg["accounts"] = [{"apiKey","baseUrl","model"}, ...] (used on 401/403/429).
+    --account N rotates the pool so entry N becomes primary (1-based; 1 = config
+    primary, 2.. = the accounts entries in order)."""
+    primary = {"apiKey": args.api_key or os.environ.get("OPENAI_API_KEY") or cfg.get("apiKey", ""),
+               "baseUrl": args.base_url or os.environ.get("OPENAI_BASE_URL") or cfg.get("baseUrl", ""),
+               "model": cfg.get("model", ""),
+               "label": "primary"}
+    extras = []
     for i, acc in enumerate(cfg.get("accounts", []) or []):
         if isinstance(acc, dict) and acc.get("apiKey"):
-            pool.append({"apiKey": acc["apiKey"],
-                         "baseUrl": acc.get("baseUrl", pool[0]["baseUrl"]),
-                         "model": acc.get("model", ""),
-                         "label": f"account{i + 2}"})
+            extras.append({"apiKey": acc["apiKey"],
+                           "baseUrl": acc.get("baseUrl", primary["baseUrl"]),
+                           "model": acc.get("model", ""),
+                           "label": f"account{i + 2}"})
+    pool = [primary] + extras
+    if args.account:
+        try:
+            n = int(args.account)
+        except ValueError:
+            print(f"error: --account must be a number, got {args.account!r}", file=sys.stderr)
+            sys.exit(1)
+        if not 1 <= n <= len(pool):
+            print(f"error: --account {n} out of range; pool has {len(pool)} "
+                  f"account(s): {[a['label'] for a in pool]}", file=sys.stderr)
+            sys.exit(1)
+        if n > 1:
+            pool = [pool[n - 1]] + pool[:n - 1] + pool[n:]
+            pool[0]["label"] = "primary(--account)"
     return [a for a in pool if a["apiKey"]]
 
 
