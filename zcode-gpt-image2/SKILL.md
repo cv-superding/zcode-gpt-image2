@@ -169,9 +169,11 @@ Different relays route image models differently — the script adapts automatica
 
 - Standard relays (new-api style, e.g. bjzy): image models on `/v1/images/generations`,
   optional tier model names (`gpt-image-2-2k`), tier auto-detected via `/v1/models`.
-- Agnes-style relays (agnes-ai.cn): image models (`agnes-image-*`) live on
-  `/v1/chat/completions` — the script detects the "use chat/completions" 400 error
-  and retries there automatically, extracting the image URL from the reply.
+- Agnes relays have TWO base URLs: `.cn` platform uses `https://api.agnes-ai.cn/v1`
+  (image models may route via chat/completions OR images/generations — the script
+  auto-falls-back between them), and `.com` platform uses the OFFICIAL
+  `https://apihub.agnes-ai.com/v1` (standard images/generations, verified working).
+  Never use `api.agnes-ai.com` — its gateway returns "Login expired" for all calls.
 - Multi-account: `cfg["accounts"]` entries may each carry their own `"model"`
   (e.g. agnes entries set `"model": "agnes-image-2.5-flash"`). On 401/403/429 of the
   primary the script rotates to the next account AND its model.
