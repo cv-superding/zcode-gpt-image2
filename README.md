@@ -87,6 +87,7 @@ python zcode-gpt-image2/scripts/generate_assets.py \
 | `--ref-images a.png,b.png` | 参考图，走 `images/edits` 融合风格 |
 | `--list-models` | 列出端点可用的生图模型 |
 | `--model gpt-image-2.5-flare` | 指定生图模型 |
+| `--account 2` | 指定用账号池中第几个账号（1=主账号，2/3=备用），其余仍作故障切换 |
 | `--res 1k/2k/4k` | 分辨率档位（自动映射分档模型） |
 | `--ratio 16:9` | 自定义画幅比例（最大 3:1） |
 | `--icon-sizes 16,32,...` | 多尺寸图标导出（需 Pillow） |
