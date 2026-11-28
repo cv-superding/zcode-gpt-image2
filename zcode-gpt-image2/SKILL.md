@@ -28,15 +28,38 @@ Everything else has a default — project name/description/tech stack come from 
 project's `package.json` / `pyproject.toml` / `README.md`; style and color from the
 tech stack (step 3). **Proceed silently with defaults.** Only ask when the request
 is truly ambiguous — e.g. "整点视觉素材" in a repo with no description at all, or the
-user is talking about a project in a different directory. When you do ask, use your
-interactive multiple-choice tool (in ZCode: AskUserQuestion) with ONE round of at
-most 3 concrete options each, never open-ended questions. If the user explicitly
+user is talking about a project in a different directory. If the user explicitly
 says 随便/你定/不用问 — just generate.
 
-### 2. Ask two things (one round), then craft prompts
+## How to ask (works in EVERY agent, not just ZCode)
 
-Before generating, ask ONE round via your multiple-choice tool (in ZCode:
-AskUserQuestion). Only these two questions — everything else stays default:
+This skill runs in ZCode, Codex, Claude Code, DSH, and any other coding agent.
+Whatever agent you are in, you MUST still ask the step-2 questions — pick the
+mechanism your host provides:
+
+- **ZCode / Claude Code**: use the interactive multiple-choice tool
+  (`AskUserQuestion`) — one round, up to 4 questions, concrete options.
+- **Codex / CLI agents without a question tool**: ask in PLAIN CHAT as a numbered
+  list, one round, e.g.:
+  ```
+  生成前确认（回复序号即可）：
+  1. 平台：① apihub.agnes-ai.com（主） ② agnes-ai.cn（备）
+  2. 参考图：① 联网搜索品牌图标 ② 我提供图片 ③ 不需要
+  3. 模型：① agnes-image-2.5-flash（默认） ② agnes-image-2.1-flash
+  ```
+  Then WAIT for the reply before running the script. Do not generate silently.
+- **DSH / other harnesses**: same numbered-chat fallback; if the host has its own
+  structured-question primitive, prefer it.
+
+Rules for ALL agents: ONE round only, 3 questions max (account / reference image /
+model), every question offers 2–4 concrete options, never open-ended. If the user
+already answered something in their request, skip that question.
+
+### 2. Ask three things (one round), then craft prompts
+
+Before generating, ask ONE round following the "How to ask" rules above (native
+multiple-choice tool in ZCode/Claude Code; numbered chat list in Codex/DSH/CLI
+agents). Only these questions — everything else stays default:
 
 1. **参考图** — "要不要融合参考图？" Options: 联网搜索品牌图标 (AI searches and
    downloads a reference) / 我自己提供图片 (user gives path(s)) / 不需要参考.
