@@ -68,16 +68,22 @@ agents). Only these questions — everything else stays default:
    banner keeps branding consistent. Do the search and download yourself; never
    ask the user to find the image. If the user already supplied an image or said
    no reference, skip this question.
-2. **生图模型** — relays often offer several image models at different prices.
-   Run `--list-models` to see what the endpoint offers, then offer 2–4 concrete
-   options (with prices if known). Per OpenAI's guide: gpt-image-2.5-flare is the
-   speed-optimized small model (good default for iteration), gpt-image-2.5-sunburst
-   is the quality-optimized base model (escalate when a text-dense or detailed
-   asset falls short). Skip when only one model exists or the user already named
-   one.
+2. **生图模型（MANDATORY every run）** — ALWAYS ask this, every single
+   generation. The ONLY exceptions: (a) the user already named a model in THIS
+   request, or (b) the user explicitly said 以后都用X/不用再问 in an earlier
+   message of this conversation. "Used model X last time" is NOT an exception —
+   ask again. Run `--list-models` to see what the endpoint offers, then offer
+   2–4 concrete options (with prices if known). Per OpenAI's guide:
+   gpt-image-2.5-flare is the speed-optimized small model (good default for
+   iteration), gpt-image-2.5-sunburst is the quality-optimized base model
+   (escalate when a text-dense or detailed asset falls short). Only skip when
+   the endpoint truly offers a single image model.
 
-If the user's request already answered a question (e.g. they pasted an image, or
-said 用ZCode图标风格), skip it. Ask nothing else.
+If the user's request already answered the reference-image or platform question,
+skip that one. The model question follows the MANDATORY rule above — it is only
+skipped when the user named a model in this request or told you to stop asking
+about it. Account question: skip only if a single account is configured. Ask
+nothing else beyond these three.
 
 Then craft one English prompt per asset after reading
 `references/prompt-guide.md`. Requirements for a good prompt:
